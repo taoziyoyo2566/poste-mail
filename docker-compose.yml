@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  poste-db:
+    image: postgres:17-alpine
+    container_name: poste-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: poste
+      POSTGRES_USER: poste
+      POSTGRES_PASSWORD: your_external_db_password # 请替换为强密码
+    volumes:
+      - poste-db-data:/var/lib/postgresql/data
+    networks:
+      - mail-network
+
+  poste:
+    image: analogic/poste-mail:latest
+    container_name: poste-mail
+    restart: unless-stopped
+    hostname: mail
+    domainname: taoziyoyo.com
+    environment:
+      # 数据库配置
+      - DBPASS=your_external_db_password # 与 poste-db 的 POSTGRES_PASSWORD 保持一致
+      - DBHOST=poste-db
+      - DBPORT=5432
+      - DBNAME=poste
+      - DBUSER=poste
+      - DBAUTH=sha512 # 可选，默认是sha512
+      # 邮件服务器配置
+      - HOSTNAME=mail.taoziyoyo.com
+      - DOMAINNAME=taoziyoyo.com
+      - POSTE_ADMIN_PASSWORD=your_admin_password # 请替换为强密码
+      - SMTP_RELAY_HOST= # 如果需要中继，可以在此处设置
+      - DKIM_SELECTOR=default
+      - DKIM_DOMAIN=taoziyoyo.com
+      - LETSENCRYPT_HOST=mail.taoziyoyo.com
+      - LETSENCRYPT_EMAIL=your-email@taoziyoyo.com
+      # 可选功能
+      - ENABLE_SPAMASSASSIN=1
+      - ENABLE_CLAMAV=1
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_POSTGREY=1
+    ports:
+      # 邮件相关端口绑定到单个 IP
+      - "91.230.73.52:25:25"      # SMTP
+      - "91.230.73.52:143:143"    # IMAP
+      - "91.230.73.52:587:587"    # SMTP Submission
+      - "91.230.73.52:993:993"    # IMAPS
+      - "91.230.73.52:4190:4190"  # Postgrey
+      # Web 界面和 SSL 证书绑定到单个 IP
+      - "91.230.73.52:80:80"      # HTTP (用于 .well-known 及 Let's Encrypt)
+      - "91.230.73.52:443:443"    # HTTPS (用于 SSL)
+    volumes:
+      - poste-data:/data/poste
+      - poste-ssl:/etc/ssl/poste
+    networks:
+      - mail-network
+    depends_on:
+      - poste-db
+
+volumes:
+  poste-data:
+    driver: local
+  poste-ssl:
+    driver: local
+  poste-db-data:
+    driver: local
+
+networks:
+  mail-network:
+    driver: bridge
